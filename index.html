@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Phase 10 Score Tracker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f9f9f9;
+      overscroll-behavior: none;
+    }
+    header {
+      background-color: #333;
+      color: white;
+      padding: 10px;
+      text-align: center;
+    }
+    main {
+      padding: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    select {
+      padding: 10px;
+      font-size: 16px;
+    }
+    input[type="radio"] {
+      transform: scale(1.5);
+      margin: 10px;
+    }
+    input[type="number"] {
+      padding: 10px;
+      font-size: 16px;
+    }
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal-content {
+      background-color: white;
+      padding: 20px;
+      border-radius: 5px;
+      max-width: 90%;
+      max-height: 80%;
+      overflow-y: auto;
+    }
+    #setup, #game, #phase-descriptions {
+      margin-bottom: 20px;
+    }
+    #player-names input {
+      display: block;
+      margin: 10px 0;
+      padding: 5px;
+      width: 200px;
+    }
+    #winner-message {
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #dff0d8;
+      border: 1px solid #3c763d;
+      color: #3c763d;
+      border-radius: 5px;
+    }
+    @media (max-width: 600px) {
+      button {
+        width: 100%;
+        box-sizing: border-box;
+        font-size: 18px;
+        padding: 15px 20px;
+      }
+      select {
+        font-size: 18px;
+        padding: 15px;
+      }
+      input[type="text"], input[type="number"] {
+        font-size: 16px;
+        padding: 10px;
+      }
+      table {
+        font-size: 14px;
+      }
+      #player-names input {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Phase 10 Score Tracker</h1>
+  </header>
+  <main>
+    <div id="setup">
+      <label for="num-players">Number of players:</label>
+      <select id="num-players">
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+      </select>
+      <div id="player-names"></div>
+      <button id="start-game">Start Game</button>
+    </div>
+    <div id="game" style="display: none;">
+      <h2>Round <span id="round-number">1</span></h2>
+      <table id="player-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phase</th>
+            <th>Points</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button id="new-round">New Round</button>
+      <button id="reset-game">Reset Game</button>
+      <div id="winner-message" style="display: none;"></div>
+    </div>
+    <div id="phase-descriptions" style="display: none;">
+      <h3>Phase Descriptions</h3>
+      <ul>
+        <li>Phase 1: 2 sets of 3</li>
+        <li>Phase 2: 1 set of 3 + 1 run of 4</li>
+        <li>Phase 3: 1 set of 4 + 1 run of 4</li>
+        <li>Phase 4: 1 run of 7</li>
+        <li>Phase 5: 1 run of 8</li>
+        <li>Phase 6: 1 run of 9</li>
+        <li>Phase 7: 2 sets of 4</li>
+        <li>Phase 8: 7 cards of 1 color</li>
+        <li>Phase 9: 1 set of 5 + 1 set of 2</li>
+        <li>Phase 10: 1 set of 5 + 1 set of 3</li>
+      </ul>
+    </div>
+    <button id="toggle-phases">Show Phase Descriptions</button>
+  </main>
+  <div id="modal" class="modal">
+    <div class="modal-content">
+      <h2>Round <span id="modal-round-number"></span></h2>
+      <form id="round-form">
+        <!-- Player inputs will be generated here -->
+      </form>
+    </div>
+  </div>
+  <script>
+    let players = [];
+    let round = 1;
+
+    // Initialize the app
+    function init() {
+      const storedPlayers = localStorage.getItem('phase10_players');
+      const storedRound = localStorage.getItem('phase10_round');
+      if (storedPlayers && storedRound) {
+        players = JSON.parse(storedPlayers);
+        round = parseInt(storedRound);
+        document.getElementById('setup').style.display = 'none';
+        document.getElementById('game').style.display = 'block';
+        document.getElementById('round-number').textContent = round;
+        updateTable();
+      } else {
+        document.getElementById('setup').style.display = 'block';
+        document.getElementById('game').style.display = 'none';
+        const playerSelect = document.getElementById('num-players');
+        playerSelect.value = '2';
+        playerSelect.dispatchEvent(new Event('change'));
+      }
+    }
+
+    // Dynamically generate player name inputs
+    document.getElementById('num-players').addEventListener('change', function() {
+      const num = parseInt(this.value);
+      const container = document.getElementById('player-names');
+      container.innerHTML = '';
+      for (let i = 0; i < num; i++) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'player-name-input';
+        input.placeholder = `Player ${i + 1} name`;
+        container.appendChild(input);
+      }
+    });
+
+    // Start the game
+    document.getElementById('start-game').addEventListener('click', function() {
+      const playerInputs = document.querySelectorAll('.player-name-input');
+      for (const input of playerInputs) {
+        if (input.value.trim() === '') {
+          alert('Please enter a name for all players.');
+          return;
+        }
+      }
+      const numPlayers = parseInt(document.getElementById('num-players').value);
+      players = [];
+      for (let i = 0; i < numPlayers; i++) {
+        const name = playerInputs[i].value.trim();
+        players.push({ name, currentPhase: 1, points: 0 });
+      }
+      round = 1;
+      localStorage.setItem('phase10_players', JSON.stringify(players));
+      localStorage.setItem('phase10_round', round);
+      document.getElementById('setup').style.display = 'none';
+      document.getElementById('game').style.display = 'block';
+      document.getElementById('round-number').textContent = round;
+      updateTable();
+    });
+
+    // Update the player table
+    function updateTable() {
+      const tbody = document.getElementById('player-table').querySelector('tbody');
+      tbody.innerHTML = '';
+      players.forEach(player => {
+        const row = document.createElement('tr');
+        const phaseText = player.currentPhase <= 10 ? `Phase ${player.currentPhase}` : 'Completed';
+        row.innerHTML = `
+          <td>${player.name}</td>
+          <td>${phaseText}</td>
+          <td>${player.points}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // Show the new round form
+    document.getElementById('new-round').addEventListener('click', function() {
+      document.getElementById('modal-round-number').textContent = round;
+      const form = document.getElementById('round-form');
+      form.innerHTML = '';
+      players.forEach((player, index) => {
+        const div = document.createElement('div');
+        div.innerHTML = `
+          <h3>${player.name}</h3>
+          <label>
+            <input type="radio" name="status_${index}" value="completed" checked> Completed Phase
+          </label>
+          <label>
+            <input type="radio" name="status_${index}" value="not_completed"> Did Not Complete
+          </label>
+          <input type="number" id="points_${index}" min="0" placeholder="Points to add">
+        `;
+        form.appendChild(div);
+        const radios = div.querySelectorAll(`input[name="status_${index}"]`);
+        radios.forEach(radio => {
+          radio.addEventListener('change', function() {
+            const pointsInput = document.getElementById(`points_${index}`);
+            // Points input is always enabled now
+          });
+        });
+      });
+      const submitButton = document.createElement('button');
+      submitButton.type = 'submit';
+      submitButton.textContent = 'Submit';
+      form.appendChild(submitButton);
+      const cancelButton = document.createElement('button');
+      cancelButton.type = 'button';
+      cancelButton.textContent = 'Cancel';
+      form.appendChild(cancelButton);
+      cancelButton.addEventListener('click', function() {
+        document.getElementById('modal').style.display = 'none';
+      });
+      document.getElementById('modal').style.display = 'flex';
+    });
+
+    // Submit the round
+    document.getElementById('round-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      let completedThisRound = [];
+      players.forEach((player, index) => {
+        const status = document.querySelector(`input[name="status_${index}"]:checked`).value;
+        const pointsInput = document.getElementById(`points_${index}`);
+        const points = parseInt(pointsInput.value) || 0;
+        if (points < 0) {
+          alert('Points cannot be negative.');
+          return;
+        }
+        if (status === 'completed') {
+          if (player.currentPhase <= 10) {
+            player.currentPhase += 1;
+            if (player.currentPhase === 11) {
+              completedThisRound.push(player);
+            }
+          }
+          player.points += points; // Add points even if phase completed
+        } else {
+          player.points += points; // Add points if phase not completed
+        }
+      });
+      if (completedThisRound.length > 0) {
+        let minPoints = Math.min(...completedThisRound.map(p => p.points));
+        let winners = completedThisRound.filter(p => p.points === minPoints);
+        if (winners.length === 1) {
+          document.getElementById('winner-message').textContent = `${winners[0].name} wins with ${winners[0].points} points!`;
+        } else {
+          let names = winners.map(w => w.name).join(' and ');
+          document.getElementById('winner-message').textContent = `${names} tie with ${minPoints} points!`;
+        }
+        document.getElementById('winner-message').style.display = 'block';
+      } else {
+        round += 1;
+        document.getElementById('round-number').textContent = round;
+        localStorage.setItem('phase10_round', round);
+      }
+      localStorage.setItem('phase10_players', JSON.stringify(players));
+      updateTable();
+      document.getElementById('modal').style.display = 'none';
+    });
+
+    // Reset the game
+    document.getElementById('reset-game').addEventListener('click', function() {
+      if (confirm('Are you sure you want to reset the game?')) {
+        localStorage.removeItem('phase10_players');
+        localStorage.removeItem('phase10_round');
+        document.getElementById('game').style.display = 'none';
+        document.getElementById('setup').style.display = 'block';
+        document.getElementById('winner-message').style.display = 'none';
+      }
+    });
+
+    // Toggle phase descriptions
+    document.getElementById('toggle-phases').addEventListener('click', function() {
+      const desc = document.getElementById('phase-descriptions');
+      if (desc.style.display === 'none') {
+        desc.style.display = 'block';
+        this.textContent = 'Hide Phase Descriptions';
+      } else {
+        desc.style.display = 'none';
+        this.textContent = 'Show Phase Descriptions';
+      }
+    });
+
+    // Initialize on page load
+    window.addEventListener('load', init);
+  </script>
+</body>
+</html>
